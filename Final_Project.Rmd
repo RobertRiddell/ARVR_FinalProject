@@ -8,13 +8,386 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(readr)
+library(tidyverse)
+library(janitor)
+library(lubridate)
+library(ggplot2)
+```
+
+```{r}
+
 ```
 
 ```{r}
 df <- read_csv("ks-projects-201801.csv")
 dim(df)
 
-unique(df$country)
+glimpse(df)
+
+sum(is.na(df))
+naniar::gg_miss_var(df)
+
+df <-  df %>% 
+  filter(complete.cases(.))
+
+df <- clean_names(df)
+
+df$usd_pledged <- NULL
+
+df <- df %>% 
+  filter(!launched == '1970-01-01')
+```
+
+Date Day, Month, Year
+```{r}
+class(df$deadline)
+class(df$launched)
+
+df$launched <- date(df$launched)
+
+df$deadline_year <- year(df$deadline)
+df$deadline_month <- month(df$deadline, label = T)
+df$deadline_day <- wday(df$deadline, label = T)
+
+df$launched_year <- year(df$launched)
+df$launched_month <- month(df$launched, label = T)
+df$launched_day <- wday(df$launched, label = T)
+
+df$campaign_length <- df$deadline - df$launched
+
+```
+
+Which main_categorties are most popular
+```{r}
+df %>% 
+  group_by(main_category) %>% 
+  count() %>% 
+  ggplot(aes(main_category, n)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('Total amount of campaigns') + 
+  coord_flip()
+
+df %>% 
+  group_by(main_category) %>% 
+  summarise(Total_pledged = sum(usd_pledged_real)) %>% 
+  ggplot(aes(main_category, Total_pledged)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('Total funding per category') + 
+  coord_flip()
+
+df %>% 
+  group_by(main_category) %>% 
+  summarise(Total_pledged = sum(usd_pledged_real),
+            campaings = n(),
+            pledged_per_campaign = Total_pledged/campaings) %>% 
+  ggplot(aes(main_category, pledged_per_campaign)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('average pledge per campaign') + 
+  coord_flip()
+
+
+```
+
+subcategories of most common categories
+```{r}
+df %>% 
+  group_by(main_category) %>% 
+  summarise(unique = unique(category)) %>% 
+  mutate(Num_sub.cat = length(unique)) %>% 
+  select(-unique) %>% 
+  summarise(num = max(Num_sub.cat)) %>% 
+  ggplot(aes(main_category, num)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  ggtitle('Number of sub categeories per main category') 
+
+
+  
+df %>% 
+  filter(main_category == 'Technology') %>%
+  group_by(category) %>% 
+  summarise(total_pledges = sum(usd_pledged_real)) %>% 
+  ggplot(aes(category, total_pledges)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  ggtitle('Technology')
+
+
+df %>% 
+  filter(main_category == 'Publishing') %>% 
+  group_by(category) %>% 
+  summarise(total_pledges = sum(usd_pledged_real)) %>% 
+  ggplot(aes(category, total_pledges)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  ggtitle('Publishing')
+
+df %>% 
+  filter(main_category =='Music') %>% 
+  group_by(category) %>% 
+  summarise(total_pledges = sum(usd_pledged_real)) %>% 
+  ggplot(aes(category, total_pledges)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  ggtitle('Music')
+
+df %>% 
+  filter(main_category =='Film & Video') %>% 
+  group_by(category) %>% 
+  summarise(total_pledges = sum(usd_pledged_real)) %>% 
+  ggplot(aes(category, total_pledges)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  ggtitle('Film & Video')
+
+df %>% 
+  filter(main_category =='Design') %>% 
+  group_by(category) %>% 
+  summarise(total_pledges = sum(usd_pledged_real)) %>% 
+  ggplot(aes(category, total_pledges)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  ggtitle('Design')
+```
+
+## length of campaign
+```{r}
+ggplot(df,aes(campaign_length)) +
+  geom_boxplot()
+
+ggplot(df,aes(campaign_length, group = main_category)) +
+  geom_boxplot()
+
+df %>%
+  mutate(simple_cl =cut_interval(campaign_length, 10)) %>% 
+  group_by(simple_cl) %>% 
+  summarise(min = min(usd_pledged_real),
+            IQR1 = IQR(usd_pledged_real, 0.25),
+            mean = mean(usd_pledged_real),
+            IQR3 = IQR(usd_pledged_real, 0.75),
+            Max = max(usd_pledged_real))
+
+df %>%
+  mutate(simple_cl =cut_interval(campaign_length, 10)) %>% 
+  group_by(simple_cl) %>% 
+  ggplot(aes(simple_cl, usd_pledged_real)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('Total pledged per campaign_length')
+
+ggplot(df,aes(campaign_length)) +
+  geom_histogram() +
+  ggtitle('distribution of campaign length')
+
+ggplot(df,aes(campaign_length, usd_pledged_real)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('Total pledged per campaign_length')
+
+ggplot(df,aes(campaign_length, backers)) +
+  geom_bar(stat = 'identity') + 
+  ggtitle('number of backers per campaign_length')
+
+```
+
+## campaigns per country
+```{r}
+df %>% 
+  group_by(country) %>% 
+  count() %>% 
+  ggplot(aes(country, n)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  ggtitle('number of campaigns per country')
+
+df %>% 
+  #filter(country == 'US'|
+         #country == 'GB'|
+         #country == 'CA'|
+         #country == 'AU') %>% 
+  filter(state != 'live',
+         state != 'suspended') %>% 
+  group_by(country, state) %>% 
+  summarise(Count = n()) %>% 
+  ggplot(aes(country, Count, fill = state)) +
+  geom_bar(position = 'fill', stat = 'identity') +
+  ggtitle('filled barplot of country success')
+
+df %>% 
+  filter(country == 'US'|
+         country == 'GB'|
+         country == 'CA'|
+         country == 'AU') %>% 
+  filter(state != 'live',
+         state != 'suspended') %>% 
+  group_by(country, state) %>% 
+  summarise(Count = n()) %>% 
+  ggplot(aes(country, Count, fill = state)) +
+  geom_bar(stat = 'identity', position = 'dodge') +
+  ggtitle('top 4 countries (by number of projects) success rate')
+
+```
+
+## pledge per backers per category
+```{r}
+df %>% 
+  summarise(average_pledge = sum(usd_pledged_real)/sum(backers))
+
+df %>% 
+  group_by(state) %>% 
+  summarise(average_pledge = sum(usd_pledged_real)/sum(backers)) %>% 
+  ggplot(aes(state, average_pledge)) + 
+  geom_bar(stat = 'identity') +
+  ggtitle('average pledge based on campaign state')
+
+df %>% 
+  group_by(main_category) %>% 
+  summarise(average_pledge = sum(usd_pledged_real)/sum(backers)) %>% 
+  ggplot(aes(main_category, average_pledge)) + 
+  geom_bar(stat = 'identity') +
+  ggtitle('average pledge based on main category') +
+  coord_flip()
+
+df %>% 
+  group_by(deadline_month) %>% 
+  summarise(average_pledge = sum(usd_pledged_real)/sum(backers)) %>% 
+  ggplot(aes(deadline_month, average_pledge)) + 
+  geom_bar(stat = 'identity') +
+  ggtitle('average pledge based on deadline month') +
+  coord_flip()
+
+
+```
+
+## backers vs state
+```{r}
+df %>% 
+  group_by(state) %>% 
+  ggplot(aes(state,backers)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('number of backers per state')
+
+
+df %>% 
+  group_by(state) %>% 
+  summarise(mean_backers = mean(backers)) %>% 
+  ggplot(aes(state,mean_backers)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('Average number of backers per state')
+
+
+df %>% 
+  group_by(main_category) %>% 
+  summarise(backer_count = sum(backers)) %>% 
+  ggplot(aes(main_category,backer_count)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('total number of backers per category') +
+  coord_flip()
+
+df %>% 
+  group_by(main_category) %>% 
+  summarise(backer_count = mean(backers)) %>% 
+  ggplot(aes(main_category,backer_count)) +
+  geom_bar(stat = 'identity') +
+  ggtitle('Average backers per category') +
+  coord_flip()
+
+```
+## Goal amount
+```{r}
+df$diff <- df$usd_pledged_real - df$usd_goal_real
+
+df %>% 
+  group_by(deadline_month) %>% 
+  summarise(mean_pledge = mean(usd_pledged_real),
+            mean_goal = mean(usd_goal_real)) %>%
+  ggplot(aes(deadline_month,mean_pledge, group = 2)) + 
+  geom_line(aes(y=mean_pledge), color = 'blue') +
+  geom_line(aes(y=mean_goal), color = 'red') +
+  ggtitle('mean pledged vs mean goal')
+           
+
+df %>%
+  filter(state == 'failed') %>% 
+  group_by(main_category) %>% 
+  summarise(dif = sum(diff)) %>% 
+  ggplot(aes(main_category,dif)) + 
+  geom_bar(stat = "identity") +
+  coord_flip() + 
+  ggtitle('Total amount fallen short per campaigns | Failed campaigns')
+
+df %>%
+  filter(state == 'failed') %>% 
+  group_by(main_category) %>% 
+  summarise(dif = mean(diff)) %>% 
+  ggplot(aes(main_category,dif)) + 
+  geom_bar(stat = "identity") +
+  coord_flip() + 
+  ggtitle('Mean amount fallen short per campaigns | Failed campaigns')
+
+
+df %>%
+  filter(state == 'successful') %>% 
+  group_by(main_category) %>% 
+  summarise(dif = sum(diff)) %>% 
+  ggplot(aes(main_category,dif)) + 
+  geom_bar(stat = "identity") +
+  coord_flip() + 
+  ggtitle('Total amount exceeded per campaigns | Successful campaigns')
+
+df %>%
+  filter(state == 'successful') %>% 
+  group_by(main_category) %>% 
+  summarise(dif = mean(diff)) %>% 
+  ggplot(aes(main_category,dif)) + 
+  geom_bar(stat = "identity") +
+  coord_flip() + 
+  ggtitle('Mean amount exceeded per campaigns | Successful campaigns')
+
+
+```
+## Launched exploration
+
+```{r}
+df %>% 
+  group_by(launched_year) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(launched_year, count, group = 1)) +
+  geom_line() +
+  ggtitle('projects launched per year')
+
+df %>% 
+  group_by(launched_month) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(launched_month, count, group = 1)) +
+  geom_line() +
+  ggtitle('projects launched per month')
+
+df %>% 
+  group_by(launched_day) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(launched_day, count, group = 1)) +
+  geom_line() +
+  ggtitle('projects launched per day')
+
+df %>% 
+  group_by(launched_year,state) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(launched_year, count, color = state)) +
+  geom_line() +
+  ggtitle('project state breakdown per year')
+
+df %>% 
+  group_by(launched_month,state) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(launched_month, count, color = state, group = state)) +
+  geom_line() +
+  ggtitle('project state breakdown per month')
+
+df %>% 
+  group_by(launched_day,state) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(launched_day, count, color = state, group = state)) +
+  geom_line() +
+  ggtitle('project state breakdown per day')
 
 ```
 
