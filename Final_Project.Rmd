@@ -2,7 +2,9 @@
 title: "Final_Project"
 author: "R.Riddell"
 date: "10/10/2020"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -12,6 +14,9 @@ library(tidyverse)
 library(janitor)
 library(lubridate)
 library(ggplot2)
+library(plotly)
+library(htmlwidgets)
+
 ```
 
 ```{r}
@@ -148,27 +153,15 @@ df %>%
   geom_bar(stat = 'identity') +
   coord_flip() +
   ggtitle('Design')
+
 ```
 
 ## length of campaign
 ```{r}
-ggplot(df,aes(campaign_length)) +
-  geom_boxplot()
-
-ggplot(df,aes(campaign_length, group = main_category)) +
-  geom_boxplot()
+df$campaign_length <- as.numeric(df$campaign_length)
 
 df %>%
-  mutate(simple_cl =cut_interval(campaign_length, 10)) %>% 
-  group_by(simple_cl) %>% 
-  summarise(min = min(usd_pledged_real),
-            IQR1 = IQR(usd_pledged_real, 0.25),
-            mean = mean(usd_pledged_real),
-            IQR3 = IQR(usd_pledged_real, 0.75),
-            Max = max(usd_pledged_real))
-
-df %>%
-  mutate(simple_cl =cut_interval(campaign_length, 10)) %>% 
+  mutate(simple_cl = cut_interval(campaign_length, 10)) %>% 
   group_by(simple_cl) %>% 
   ggplot(aes(simple_cl, usd_pledged_real)) +
   geom_bar(stat = 'identity') +
@@ -389,5 +382,164 @@ df %>%
   geom_line() +
   ggtitle('project state breakdown per day')
 
+```
+## transformatioon of category over time
+```{r moving Line graph Kickstater popularity}
+df2 <- df %>% 
+  group_by(launched_year, main_category) %>% 
+  summarise(count = n())
+
+ggplot(df2, aes(launched_year, count, colour = main_category, group = main_category)) +
+  geom_line() +
+  gganimate::transition_reveal(launched_year)
+```
+
+
+```{r bubble graph the goal vs pledged size by count}
+df$launched_YM <- format(as.Date(df$launched),' %Y-%m')
+
+df3 <- df %>% 
+  #filter(state == 'successful') %>% 
+  group_by(launched_YM,main_category) %>% 
+  summarise(Count = n(),
+            #cs = sum(usd_pledged_real), 
+            mean_pledged = mean(usd_pledged_real),
+            mean_goal = mean(usd_goal_real),.groups = 'keep') 
+
+
+ggplot(df3, aes(launched_year, count, fill = main_category)) +
+  geom_point()
+
+ggplot(df3, aes(x = mean_cs, y = mean_goal)) + 
+  geom_point(aes(color = main_category, size = Count), alpha = 0.5) +
+  #scale_color_manual(values = c("#00AFBB", "#E7B800", "#FC4E07")) +
+  scale_size(range = c(0.5, 12))  # Adjust the range of points size
+
+r1 <- plot_ly(
+  df3, x = ~mean_pledged, y = ~mean_goal, frame =~launched_YM,  
+  color = ~main_category, type = "scatter",
+  mode="markers", size=~Count,
+  marker = list(symbol = 'circle', sizemode = 'diameter',
+                      line = list(width = 2, color = '#FFFFFF'), opacity=0.4)) %>% 
+  animation_opts(2000,redraw = F) %>% 
+  animation_slider(currentvalue = list(prefix = "Year", font = list(color = 'red')))
+
+saveWidget(r1, file=paste0( getwd(), "/r1.html"))
+
+
+df4 <- df %>% 
+  #filter(state == 'successful') %>% 
+  group_by(launched_YM,main_category) %>% 
+  summarise(Count = n(),
+            pleged = sum(usd_pledged_real),
+            Goal = sum(usd_goal_real),.groups = 'keep') 
+
+r2 <- plot_ly(
+  df4, x = ~pleged, y = ~Goal, frame =~launched_YM,  
+  color = ~main_category, type = "scatter",
+  mode="markers", size=~Count,
+  marker = list(symbol = 'circle', sizemode = 'diameter',
+                      line = list(width = 2, color = '#FFFFFF'), opacity=0.4)) %>% 
+  animation_opts(1000, redraw = F) %>% 
+  animation_slider(currentvalue = list(prefix = "Year", font = list(color = 'red')))
+
+saveWidget(r2, file=paste0( getwd(), "/bubble1.html"))
+
+df %>% 
+  filter(main_category == 'Food' &
+           launched_year == 2014 &
+           launched_month == 'Jul') 
+
+df5 <- df %>% 
+  #filter(state == 'successful') %>% 
+  group_by(launched_YM,main_category) %>% 
+  summarise(backers = sum(backers),
+            pleged = sum(usd_pledged_real),
+            Number_of_concurrent_projects = n(),.groups = 'keep') 
+
+r3 <- plot_ly(
+  df5, x = ~pleged, y = ~Number_of_concurrent_projects, frame =~launched_YM,  
+  color = ~main_category, type = "scatter",
+  mode="markers", size=~backers,
+  marker = list(symbol = 'circle', sizemode = 'diameter',
+                      line = list(width = 2, color = '#FFFFFF'), opacity=0.4)) %>% 
+  animation_opts(2000, redraw = F) %>% 
+  animation_slider(currentvalue = list(prefix = "Year", font = list(color = 'red')))
+
+saveWidget(r3, file=paste0( getwd(), "/bubble2.html"))
+
+df6 <- df %>% 
+  filter(launched_year > 2013) %>% 
+  group_by(launched_YM,state) %>% 
+  summarise(backers = sum(backers),
+            mean_pleged = mean(usd_pledged_real),
+            Number_of_concurrent_projects = n(),.groups = 'keep') 
+
+r4 <- plot_ly(
+  df6, x = ~mean_pleged, y = ~Number_of_concurrent_projects, frame =~launched_YM,  
+  color = ~state, type = "scatter",
+  mode="markers", size=~backers,
+  marker = list(symbol = 'circle', sizemode = 'diameter',
+                      line = list(width = 2, color = '#FFFFFF'), opacity=0.4)) %>% 
+  animation_opts(500, redraw = F, mode = 'next') %>% 
+  animation_slider(currentvalue = list(prefix = "Year", font = list(color = 'red')))
+
+saveWidget(r4, file=paste0( getwd(), "/bubble4.html"))
+
+
+```
+
+
+```{r}
+df7 <- df %>% 
+  filter(state != 'live') %>% 
+  group_by(launched_YM, state) %>% 
+  summarise(count = n(),.groups = 'keep') %>% ungroup()
+
+ggplot(df7, aes(launched_year, count, colour = state, group = state)) +
+  geom_line() +
+  gganimate::transition_reveal(launched_year)
+
+
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  bind_rows(dats)
+}
+
+min_date <- min(df$launched)
+min_date <- ymd_hms("2009-04-21 00:00:00")
+min_Date_ms <- interval("1970-01-01 00:00:00", min_date) / dmilliseconds(1)
+
+max_date <- max(df$launched)
+max_date <- ymd_hms("2018-01-02 00:00:00")
+max_Date_ms <- interval("1970-01-01 00:00:00", max_date) / dmilliseconds(1)
+
+
+fig <- df7 
+
+fig <- fig %>%  accumulate_by(~launched_YM)
+
+fig <- fig %>%
+  plot_ly(
+    x = ~launched_YM, 
+    y = ~count,
+    split = ~state,
+    frame = ~frame,
+    type = 'scatter',
+    mode = 'lines+markers',
+    line = list(simplyfy = F)) %>% 
+  layout(xaxis = list(rangemode = "tozero"),
+         yaxis = list(rangemode = "nonnegative")) %>% 
+  animation_opts(frame = 2000, redraw = F) %>% 
+  animation_slider(hide = T) %>% 
+  animation_button(x = 1, xanchor = "right", y = 0, yanchor = "bottom")
+
+saveWidget(fig, file=paste0( getwd(), "/line.html"))
+
+range(df7$launched_YM)
 ```
 
