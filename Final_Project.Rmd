@@ -16,6 +16,8 @@ library(lubridate)
 library(ggplot2)
 library(plotly)
 library(htmlwidgets)
+library(gganimate)
+
 
 ```
 
@@ -178,7 +180,6 @@ ggplot(df,aes(campaign_length, usd_pledged_real)) +
 ggplot(df,aes(campaign_length, backers)) +
   geom_bar(stat = 'identity') + 
   ggtitle('number of backers per campaign_length')
-
 ```
 
 ## campaigns per country
@@ -396,8 +397,8 @@ ggplot(df2, aes(launched_year, count, colour = main_category, group = main_categ
 
 
 ```{r bubble graph the goal vs pledged size by count}
-df$launched_YM <- format(as.Date(df$launched),' %Y-%m')
-
+df$launched_YM <- format(as.Date(df$launched),'%Y-%m')
+class(df$launched_YM)
 df3 <- df %>% 
   #filter(state == 'successful') %>% 
   group_by(launched_YM,main_category) %>% 
@@ -493,14 +494,24 @@ saveWidget(r4, file=paste0( getwd(), "/bubble4.html"))
 ```{r}
 df7 <- df %>% 
   filter(state != 'live') %>% 
-  group_by(launched_YM, state) %>% 
+  group_by(state,launched_YM) %>% 
   summarise(count = n(),.groups = 'keep') %>% ungroup()
 
-ggplot(df7, aes(launched_year, count, colour = state, group = state)) +
-  geom_line() +
-  gganimate::transition_reveal(launched_year)
+lineG <- ggplot(df7, aes(launched_YM, count, colour = state, group = state)) +
+  geom_line(size = 2) +
+  theme_bw() +
+  transition_reveal(launched_YM, keep_last = T) + 
+  view_follow() +
+  ease_aes('back-in') 
 
+animate(lineG, duration = 15, fps = 60, renderer = gifski_renderer(loop = FALSE), height = 800, width = 1600) 
+anim_save <- lineG + exit_shrink()
+anim_save('Line_graph.gif', animtion = anim_save)
 
+?exit_shrink()
+
+anim_save(lineG)
+?ease_aes
 accumulate_by <- function(dat, var) {
   var <- lazyeval::f_eval(var, dat)
   lvls <- plotly:::getLevels(var)
@@ -519,6 +530,9 @@ max_date <- ymd_hms("2018-01-02 00:00:00")
 max_Date_ms <- interval("1970-01-01 00:00:00", max_date) / dmilliseconds(1)
 
 
+df$launched_YM <- parse_date(df$launched_YM, format = '%Y-%m')
+class(df$launched_YM)          
+
 fig <- df7 
 
 fig <- fig %>%  accumulate_by(~launched_YM)
@@ -532,14 +546,102 @@ fig <- fig %>%
     type = 'scatter',
     mode = 'lines+markers',
     line = list(simplyfy = F)) %>% 
-  layout(xaxis = list(rangemode = "tozero"),
-         yaxis = list(rangemode = "nonnegative")) %>% 
-  animation_opts(frame = 2000, redraw = F) %>% 
-  animation_slider(hide = T) %>% 
-  animation_button(x = 1, xanchor = "right", y = 0, yanchor = "bottom")
+  layout(xaxis = list(range = c(min_Date_ms,max_Date_ms)))
+  #animation_opts(frame = 2000, redraw = F) %>% 
+  #animation_slider(hide = T) %>% 
+  #animation_button(x = 1, xanchor = "right", y = 0, yanchor = "bottom")
 
 saveWidget(fig, file=paste0( getwd(), "/line.html"))
 
 range(df7$launched_YM)
+```
+
+```{r}
+library(caret)
+control_obj <- trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = "final",
+  classProbs = T 
+)
+
+set.seed(345)
+
+tree_mdl  <- train(state ~. , data = df_c ,
+                   method = 'rpart',
+                   tuneGrid = expand.grid(cp = seq(0.01,0.1,0.01)),
+                   trControl = control_obj,
+                   metric = "ROC")
+
+tree_mdl
+plot(tree_mdl)
+rattle::fancyRpartPlot(tree_mdl$finalModel, sub = "", palettes = 'RdBu')
+plot(varImp(tree_mdl), top =20)
+
+glimpse(df_c)
+
+df_c <- df
+
+df_c <- df_c %>% 
+  slice(1:15000)
+
+df_c <- df_c  %>% 
+  select(-c(diff, name, id, pledged,usd_pledged_real))
+
+df_c <- df_c  %>% 
+  filter(state == 'successful'|
+           state == 'failed')
+
+df_c <- df_c %>% 
+  mutate_at(vars(category,main_category,currency,country,state), as.factor)
+
+df_c$state <- factor(df_c$state)
+
+levels(droplevels(df_c$state))
+
+unique(df_c$state)
+```
+
+```{r Shiny category based success or failure}
+
+sdf <- df %>% 
+  group_by(main_category,state) %>% 
+  filter(state != 'live', state != 'suspended') %>% 
+  count()
+  
+
+library(shiny)
+
+ui <- fluidPage(
+  #numericInput(inputId = "n",
+               #"sample size", value = 25),
+      selectInput("mySelectInput", 
+                  'Select from the dropdown:',
+                  choices = unique(sdf$main_category)),
+  plotOutput(outputId = "scatter"),
+  textOutput("niceSelectOutput"))
+
+server <- function(input,output){
+  
+  xvalues <- reactive({sdf %>% filter(main_category == input$mySelectInput) %>% ungroup() %>%  select(state)})
+  yvalues <- reactive({sdf %>% filter(main_category == input$mySelectInput) %>% ungroup() %>%  select(n)})
+  
+  output$scatter <- renderPlot({
+    ggplot(data = NULL,aes(unlist(xvalues()),unlist(yvalues()))) + geom_bar(stat = 'identity') +
+      xlab(input$mySelectInput) +
+      ggtitle("Distribution of Iris data") +
+      theme_bw()})
+
+}
+
+shinyApp(ui = ui, server = server)
+
+x <- sdf %>% filter(main_category == 'Art') %>% ungroup() %>%  select(state)
+y <- sdf %>% filter(main_category == 'Art') %>% ungroup() %>%  select(n)
+
+ggplot(sdf,aes(unlist(x),unlist(y))) + geom_bar(stat = 'identity')
+
+
+
 ```
 
