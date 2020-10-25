@@ -41,8 +41,6 @@ df <- clean_names(df)
 
 df$usd_pledged <- NULL
 
-df <- df %>% 
-  filter(!launched == '1970-01-01')
 ```
 
 Date Day, Month, Year
@@ -61,6 +59,9 @@ df$launched_month <- month(df$launched, label = T)
 df$launched_day <- wday(df$launched, label = T)
 
 df$campaign_length <- df$deadline - df$launched
+
+df <- df %>% 
+  filter(!launched == '1970-01-01')
 
 ```
 
@@ -161,6 +162,7 @@ df %>%
 ## length of campaign
 ```{r}
 df$campaign_length <- as.numeric(df$campaign_length)
+range(df$campaign_length)
 
 df %>%
   mutate(simple_cl = cut_interval(campaign_length, 10)) %>% 
@@ -583,10 +585,11 @@ glimpse(df_c)
 df_c <- df
 
 df_c <- df_c %>% 
-  slice(1:15000)
+  slice(1:50000)
 
 df_c <- df_c  %>% 
   select(-c(diff, name, id, pledged,usd_pledged_real))
+
 
 df_c <- df_c  %>% 
   filter(state == 'successful'|
@@ -643,5 +646,14 @@ ggplot(sdf,aes(unlist(x),unlist(y))) + geom_bar(stat = 'identity')
 
 
 
+```
+
+```{r}
+sum(df$usd_pledged_real)
+sum(df$usd_goal_real)
+
+df %>% 
+  group_by(state) %>% 
+  count()
 ```
 
