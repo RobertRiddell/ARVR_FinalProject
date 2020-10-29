@@ -17,15 +17,11 @@ library(ggplot2)
 library(plotly)
 library(htmlwidgets)
 library(gganimate)
-
-
-```
-
-```{r}
+library(scales)
 
 ```
 
-```{r}
+```{r Cleaning Na out of dataframe}
 df <- read_csv("ks-projects-201801.csv")
 dim(df)
 
@@ -44,10 +40,12 @@ df$usd_pledged <- NULL
 ```
 
 Date Day, Month, Year
-```{r}
+```{r adjusting columns and creating new variables}
+# checking if date
 class(df$deadline)
 class(df$launched)
 
+# changing to dat and creating day, month and year columns
 df$launched <- date(df$launched)
 
 df$deadline_year <- year(df$deadline)
@@ -60,13 +58,17 @@ df$launched_day <- wday(df$launched, label = T)
 
 df$campaign_length <- df$deadline - df$launched
 
+# creating a column which is the differnce between goal and amount pledged
+df$diff <- df$usd_pledged_real - df$usd_goal_real
+
+# filetring out incorrect observations
 df <- df %>% 
   filter(!launched == '1970-01-01')
 
 ```
 
 Which main_categorties are most popular
-```{r}
+```{r Data exploration of categories}
 df %>% 
   group_by(main_category) %>% 
   count() %>% 
@@ -97,7 +99,7 @@ df %>%
 ```
 
 subcategories of most common categories
-```{r}
+```{r data exploration of subcategories}
 df %>% 
   group_by(main_category) %>% 
   summarise(unique = unique(category)) %>% 
@@ -155,12 +157,20 @@ df %>%
   ggplot(aes(category, total_pledges)) +
   geom_bar(stat = 'identity') +
   coord_flip() +
-  ggtitle('Design')
+  ggtitle('Design') +
+  scale_y_continuous(labels = point)
+
+
+ggplot(df, aes(main_category, usd_pledged_real)) +
+  geom_bar(stat = 'identity') +
+  scale_y_continuous(labels = format_format(big.mark = " ", decimal.mark = ",", scientific = FALSE))
+
+point <- format_format(big.mark = " ", decimal.mark = ",", scientific = FALSE)
 
 ```
 
 ## length of campaign
-```{r}
+```{r data exploration of campaign length}
 df$campaign_length <- as.numeric(df$campaign_length)
 range(df$campaign_length)
 
@@ -185,7 +195,7 @@ ggplot(df,aes(campaign_length, backers)) +
 ```
 
 ## campaigns per country
-```{r}
+```{r data exploration of country}
 df %>% 
   group_by(country) %>% 
   count() %>% 
@@ -223,7 +233,7 @@ df %>%
 ```
 
 ## pledge per backers per category
-```{r}
+```{r data exploration of backers}
 df %>% 
   summarise(average_pledge = sum(usd_pledged_real)/sum(backers))
 
@@ -254,7 +264,7 @@ df %>%
 ```
 
 ## backers vs state
-```{r}
+```{r data exploration of backers vs state}
 df %>% 
   group_by(state) %>% 
   ggplot(aes(state,backers)) +
@@ -288,8 +298,7 @@ df %>%
 
 ```
 ## Goal amount
-```{r}
-df$diff <- df$usd_pledged_real - df$usd_goal_real
+```{r data exploration of of Goal}
 
 df %>% 
   group_by(deadline_month) %>% 
@@ -342,7 +351,7 @@ df %>%
 ```
 ## Launched exploration
 
-```{r}
+```{r data exploration of launched date}
 df %>% 
   group_by(launched_year) %>% 
   summarise(count = n()) %>% 
@@ -387,7 +396,7 @@ df %>%
 
 ```
 ## transformatioon of category over time
-```{r moving Line graph Kickstater popularity}
+```{r animated Line graph Kickstater popularity}
 df2 <- df %>% 
   group_by(launched_year, main_category) %>% 
   summarise(count = n())
@@ -398,7 +407,7 @@ ggplot(df2, aes(launched_year, count, colour = main_category, group = main_categ
 ```
 
 
-```{r bubble graph the goal vs pledged size by count}
+```{r bubble graphs with a variety of features}
 df$launched_YM <- format(as.Date(df$launched),'%Y-%m')
 class(df$launched_YM)
 df3 <- df %>% 
@@ -493,7 +502,7 @@ saveWidget(r4, file=paste0( getwd(), "/bubble4.html"))
 ```
 
 
-```{r}
+```{r animted line graphs}
 df7 <- df %>% 
   filter(state != 'live') %>% 
   group_by(state,launched_YM) %>% 
@@ -558,7 +567,7 @@ saveWidget(fig, file=paste0( getwd(), "/line.html"))
 range(df7$launched_YM)
 ```
 
-```{r}
+```{r decsion tree modelling to understand variable importance}
 library(caret)
 control_obj <- trainControl(
   method = "cv",
@@ -605,7 +614,7 @@ levels(droplevels(df_c$state))
 unique(df_c$state)
 ```
 
-```{r Shiny category based success or failure}
+```{r Shiny app showing category and success or failure}
 
 sdf <- df %>% 
   group_by(main_category,state) %>% 
@@ -648,12 +657,252 @@ ggplot(sdf,aes(unlist(x),unlist(y))) + geom_bar(stat = 'identity')
 
 ```
 
-```{r}
-sum(df$usd_pledged_real)
-sum(df$usd_goal_real)
+```{r Visualisations for presentation}
+# what is the relationship between goal and categories
+df_goal <- df %>%
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  group_by(main_category) %>% 
+  summarise(mean_goal = mean(usd_goal_real),
+            mean_pledge = mean(usd_pledged_real),
+            diff = mean(diff),
+            diff = abs(diff),
+            success = sum(state == 'successful')/ (sum(state == 'successful')+sum(state == 'failed')))
+
+df_showPLot <- df_goal[df_goal$main_category == 'Technology'|
+                        df_goal$main_category == 'Journalism'|
+                        df_goal$main_category == 'Food'|
+                        df_goal$main_category == 'Design'|
+                        df_goal$main_category == 'Games'|
+                        df_goal$main_category == 'Dance'|
+                        df_goal$main_category == 'Comics'|
+                        df_goal$main_category == 'Theater'|
+                        df_goal$main_category == 'Music',]
+
+t <- list(family = 'sans serif', size = 10, color = toRGB('grey50'))
+
+a <- list(
+  x = df_goal$mean_goal  ,
+  y = df_goal$mean_pledge,
+  text = df_goal$main_category,
+  xref = "x",
+  yref = "y",
+  showarrow = T,
+  arrowhead = 2,
+  ax = 20,
+  ay = -40
+)
+
+
+goal_pledge_diff <- plot_ly(
+  df_goal, x = ~mean_goal, y = ~mean_pledge,
+  color = ~main_category, type = "scatter", #text = ~main_category, textposition = "left", textfont = t,
+  mode="markers", size=~success,
+  marker = list(symbol = 'circle', sizemode = 'diameter',
+                      line = list(width = 2), opacity=0.4, showlegend = T)) %>%
+  layout(legend = list(x = 0.1, y = 0.9),
+         title = "Mean Pledge vs Mean Goal",
+         xaxis = list(title = 'Mean Goal USD'),
+         yaxis = list(title = 'Mean Pledge USD'),
+         annotations = a)
+
+
+saveWidget(goal_pledge_diff, file=paste0( getwd(), "/goalBubble.html"))
+
+#exceeded vs fell shorts
+df_pos <- df %>%
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  filter(diff > 0) %>% 
+  group_by(main_category) %>% 
+  summarise(Mean_pos = mean(diff)) 
+            
+df_neg <- df %>%
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  filter(diff < 0) %>% 
+  group_by(main_category) %>% 
+  summarise(Mean_neg = mean(diff))             
+            
+df_pos_neg <- left_join(df_pos, df_neg)
+
+df_pos_neg %>%
+  pivot_longer(cols = c(Mean_pos,Mean_neg)) %>% 
+  mutate(bad = if_else(main_category == 'Theater'|main_category == 'Dance','Bad','fine')) %>% 
+  ggplot(aes(main_category,value, fill = name, alpha = main_category)) + 
+  geom_bar(stat = "identity", position = 'stack') +
+  coord_flip() + 
+  scale_alpha_manual(values = c(.2,.2,.2,.2,1,.2,.2,.2,1,.2,.2,.2,.2,1,.2)) +
+  guides(alpha = F) +
+  ggtitle('Mean amount failed or succeded') +
+  ylab('Amount (thousands)') + 
+  xlab('Category') +
+  scale_y_continuous(labels = label_number(scale = 1e-3, big.mark = ",")) + 
+  scale_fill_discrete(labels = c('Failed', 'Successful')) +
+  labs(fill = 'Project State')
+
+df_pos_neg %>%
+  pivot_longer(cols = c(Mean_pos,Mean_neg)) %>% 
+  mutate(bad = if_else(main_category == 'Theater'|main_category == 'Dance','Bad','fine')) %>% 
+  ggplot(aes(main_category,value, fill = name, alpha = main_category)) + 
+  geom_bar(stat = "identity", position = 'stack') +
+  coord_flip() + 
+  scale_alpha_manual(values = c(1,.2,.2,.2,.2,.2,1,.2,.2,1,.2,.2,.2,.2,1)) +
+  #scale_fill_manual(values = c())
+  guides(alpha = F) +
+  ggtitle('Mean amount failed or succeded') +
+  ylab('Amount (thousands)') + 
+  xlab('Category') +
+  scale_y_continuous(labels = label_number(scale = 1e-3, big.mark = ",")) + 
+  scale_fill_discrete(labels = c('Failed', 'Successful')) +
+  labs(fill = 'Project State')
+
+# what is the relationship between goal and launch month
+df %>% 
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  group_by(launched_month, state) %>% 
+  summarise(Median = median(usd_goal_real)) %>% 
+  ggplot(aes(launched_month, Median, group = state, fill = state, alpha = launched_month)) +
+  geom_bar(stat = 'identity', position = 'stack') +
+  scale_alpha_manual(values = c(.5,.5,.5,1,1,1,.5,.5,1,1,1,.5)) +
+  guides(alpha = F)+
+  theme_bw() +
+  ggtitle('Median Goal per Launch Month') +
+  ylab('Amount ($)') + 
+  xlab('Launch Month') +
+  scale_fill_discrete(labels = c('Failed','Successful')) +
+  labs(fill = 'Project State')
+
+# what is the relationship between goal and campaign length 
+df$campaign_length <- as.numeric(df$campaign_length)
+
+df$campaign_length_simple <- cut_interval(df$campaign_length,10)
+unique(df$campaign_length_simple)
+
+Line_Goal <- df %>% 
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  group_by(campaign_length_simple) %>% 
+  summarise('Total Goal' = sum(usd_goal_real),
+            'Total Pledged' = sum(usd_pledged_real)) %>% 
+  pivot_longer(cols = c('Total Goal','Total Pledged')) %>%
+  mutate(row_number = row_number()) %>% 
+  ggplot(aes(campaign_length_simple, value, group = name, color = name)) +
+  geom_line(size = 2) + 
+  ggtitle('Total Goal and Total Pledged') +
+  xlab('Campaign Length') +
+  ylab('Total Goal of Project (000,000)') +
+  theme_bw()+
+  theme(plot.title = element_text(size = 30, face = 'bold', hjust = 0.5),
+        axis.title.x = element_text(size = 20, hjust = 0.5),
+        axis.title.y = element_text(size = 20, hjust = 0.5),
+        legend.position = 'right',
+        axis.text.x = element_text(angle = 45, vjust = 1, size = 15, hjust = 1),
+        axis.text.y = element_text(angle = 45, size = 15),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 20)) +
+  scale_y_continuous(labels = label_number(scale = 1e-6, big.mark = ",")) +
+  scale_x_discrete(labels = c('1 to 10 days',
+                              '11 to 18 days',
+                              '19 to 27 days',
+                              '28 to 36 days',
+                              '37 to 45 days',
+                              '46 to 54 days',
+                              '55 to 63 days',
+                              '64 to 72 days',
+                              '73 to 81 days',
+                              '82 to 92 days')) + 
+   transition_reveal(row_number, keep_last = T)
+
+
+animate(Line_Goal, duration = 5, fps = 60, renderer = gifski_renderer(loop = FALSE), height = 800, width = 1600) 
+anim_save <- Line_Goal + exit_shrink()
+anim_save('Line_graph_goal.gif', animtion = anim_save)
 
 df %>% 
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
   group_by(state) %>% 
-  count()
+  summarise(mean= mean(usd_goal_real)) %>% 
+  mutate(mean = round(mean, digits = 0)) %>% 
+  ggplot(aes(state, mean, fill = state)) +
+  geom_bar(stat = 'identity') +
+  geom_text(aes(label=mean), vjust=1.6, color="white",position = position_dodge(0.9), size=4)+
+  ggtitle('Mean Goal') +
+  ylab('Amount') + 
+  xlab('Project State') +
+  scale_fill_discrete(labels = c('Successful','Failed')) +
+  scale_x_discrete(labels = c('Failed', 'Successful'))+
+  theme(plot.title = element_text(size = 12, face = 'bold', hjust = 0.5),
+        axis.title.x = element_text(size = 10, hjust = 0.5),
+        axis.title.y = element_text(size = 10, hjust = 0.5),
+        legend.position = 'none',
+        axis.text.x = element_text(angle = 0, size = 8),
+        axis.text.y = element_text(angle = 0, size = 8))
 ```
+
+```{r meeting critera or not meeting criteria}
+df %>% 
+  filter(campaign_length > 19 & campaign_length < 45) %>% 
+  filter(launched_month == 'Apr'| launched_month == 'May'| launched_month == 'Jun'| 
+           launched_month == 'Sep'| launched_month == 'Oct'| launched_month == 'Nov') %>% 
+  filter(main_category == 'Games'| main_category == 'Design'|
+         main_category == 'Comics'| main_category == 'Dance'| main_category == 'Music') %>% 
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  group_by(state) %>% 
+  summarise(count = n(),
+            mean_pledge = mean(usd_pledged_real)) %>% 
+  pivot_longer(c('count', 'mean_pledge')) %>% 
+  ggplot(aes(name, value, fill = state)) + 
+  geom_bar(stat = 'identity', position = 'dodge') +
+  theme_bw() +
+  ggtitle('Projects that are suitable to Kickstater') +
+  ylab(' ') + 
+  xlab(' ') +
+  scale_fill_discrete(labels = c('Failed','Successful')) +
+  labs(fill = 'Project State') +
+  scale_x_discrete(labels =c('Number of Projects', 'Mean Pledge USD'))
+
+
+
+
+df %>% 
+  filter(campaign_length < 19 | campaign_length > 45) %>% 
+  filter(!launched_month == 'Apr'| !launched_month == 'May'| !launched_month == 'Jun'| 
+           !launched_month == 'Sep'| !launched_month == 'Oct'| !launched_month == 'Nov') %>% 
+  filter(!main_category == 'Games'| !main_category == 'Design'|
+         !main_category == 'Comics'| !main_category == 'Dance'| !main_category == 'Music') %>% 
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  group_by(state) %>% 
+  summarise(count = n(),
+            mean_pledge = mean(usd_pledged_real)) %>% 
+  pivot_longer(c('count', 'mean_pledge')) %>% 
+  ggplot(aes(name, value, fill = state)) + 
+  geom_bar(stat = 'identity', position = 'dodge') +
+  theme_bw() +
+  ggtitle('Projects that may not be suitable to Kickstater') +
+  ylab(' ') + 
+  xlab(' ') +
+  scale_fill_discrete(labels = c('Failed','Successful')) +
+  labs(fill = 'Project State') +
+  scale_x_discrete(labels =c('Number of Projects', 'Mean Pledge USD'))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
