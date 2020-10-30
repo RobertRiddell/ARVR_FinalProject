@@ -659,6 +659,7 @@ ggplot(sdf,aes(unlist(x),unlist(y))) + geom_bar(stat = 'identity')
 
 ```{r Visualisations for presentation}
 # what is the relationship between goal and categories
+# calculating the percent mean goal, pledge and difference and also calcaulting the percent succes rate based on each category
 df_goal <- df %>%
   filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
   group_by(main_category) %>% 
@@ -668,18 +669,7 @@ df_goal <- df %>%
             diff = abs(diff),
             success = sum(state == 'successful')/ (sum(state == 'successful')+sum(state == 'failed')))
 
-df_showPLot <- df_goal[df_goal$main_category == 'Technology'|
-                        df_goal$main_category == 'Journalism'|
-                        df_goal$main_category == 'Food'|
-                        df_goal$main_category == 'Design'|
-                        df_goal$main_category == 'Games'|
-                        df_goal$main_category == 'Dance'|
-                        df_goal$main_category == 'Comics'|
-                        df_goal$main_category == 'Theater'|
-                        df_goal$main_category == 'Music',]
-
-t <- list(family = 'sans serif', size = 10, color = toRGB('grey50'))
-
+# creating a list that will be used in the plot to label the bubbles
 a <- list(
   x = df_goal$mean_goal  ,
   y = df_goal$mean_pledge,
@@ -692,10 +682,10 @@ a <- list(
   ay = -40
 )
 
-
+# creating the bubble plot
 goal_pledge_diff <- plot_ly(
   df_goal, x = ~mean_goal, y = ~mean_pledge,
-  color = ~main_category, type = "scatter", #text = ~main_category, textposition = "left", textfont = t,
+  color = ~main_category, type = "scatter", 
   mode="markers", size=~success,
   marker = list(symbol = 'circle', sizemode = 'diameter',
                       line = list(width = 2), opacity=0.4, showlegend = T)) %>%
@@ -705,24 +695,29 @@ goal_pledge_diff <- plot_ly(
          yaxis = list(title = 'Mean Pledge USD'),
          annotations = a)
 
-
+# saving bubble plot
 saveWidget(goal_pledge_diff, file=paste0( getwd(), "/goalBubble.html"))
 
 #exceeded vs fell shorts
+# filtering the obsrevations that exceeded their goal and calcaulting mean
 df_pos <- df %>%
   filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
   filter(diff > 0) %>% 
   group_by(main_category) %>% 
   summarise(Mean_pos = mean(diff)) 
             
+# filtering observations that fell short of goal and calcaulting mean
 df_neg <- df %>%
   filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
   filter(diff < 0) %>% 
   group_by(main_category) %>% 
   summarise(Mean_neg = mean(diff))             
-            
+
+# creating a new dataframe with the mean positive and negative values            
 df_pos_neg <- left_join(df_pos, df_neg)
 
+# pivoting the dataframe to work better in ggplot and plotting the positive and negatives as a barplot
+# creating one plot with the categories that are higher achivers
 df_pos_neg %>%
   pivot_longer(cols = c(Mean_pos,Mean_neg)) %>% 
   mutate(bad = if_else(main_category == 'Theater'|main_category == 'Dance','Bad','fine')) %>% 
@@ -738,6 +733,7 @@ df_pos_neg %>%
   scale_fill_discrete(labels = c('Failed', 'Successful')) +
   labs(fill = 'Project State')
 
+#creating a plot with lower acheivers
 df_pos_neg %>%
   pivot_longer(cols = c(Mean_pos,Mean_neg)) %>% 
   mutate(bad = if_else(main_category == 'Theater'|main_category == 'Dance','Bad','fine')) %>% 
@@ -754,6 +750,7 @@ df_pos_neg %>%
   labs(fill = 'Project State')
 
 # what is the relationship between goal and launch month
+# plotting the median goal vs month
 df %>% 
   filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
   group_by(launched_month, state) %>% 
@@ -770,11 +767,14 @@ df %>%
   labs(fill = 'Project State')
 
 # what is the relationship between goal and campaign length 
+# formatting the campaign length feature
 df$campaign_length <- as.numeric(df$campaign_length)
 
+# binning teh feature into a categorical feature
 df$campaign_length_simple <- cut_interval(df$campaign_length,10)
 unique(df$campaign_length_simple)
 
+# creating an animated line plot between campainn length and mean pledge and goal
 Line_Goal <- df %>% 
   filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
   group_by(campaign_length_simple) %>% 
@@ -809,7 +809,7 @@ Line_Goal <- df %>%
                               '82 to 92 days')) + 
    transition_reveal(row_number, keep_last = T)
 
-
+# saving animated plot
 animate(Line_Goal, duration = 5, fps = 60, renderer = gifski_renderer(loop = FALSE), height = 800, width = 1600) 
 anim_save <- Line_Goal + exit_shrink()
 anim_save('Line_graph_goal.gif', animtion = anim_save)
