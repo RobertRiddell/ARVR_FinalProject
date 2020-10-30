@@ -745,7 +745,6 @@ df_pos_neg %>%
   geom_bar(stat = "identity", position = 'stack') +
   coord_flip() + 
   scale_alpha_manual(values = c(1,.2,.2,.2,.2,.2,1,.2,.2,1,.2,.2,.2,.2,1)) +
-  #scale_fill_manual(values = c())
   guides(alpha = F) +
   ggtitle('Mean amount failed or succeded') +
   ylab('Amount (thousands)') + 
@@ -880,10 +879,34 @@ df %>%
   xlab(' ') +
   scale_fill_discrete(labels = c('Failed','Successful')) +
   labs(fill = 'Project State') +
-  scale_x_discrete(labels =c('Number of Projects', 'Mean Pledge USD'))
+  scale_x_discrete(labels =c('Number of Projects', 'Mean Pledge USD')) 
+
 
 ```
 
+```{r}
+df %>% 
+  filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
+  group_by(state) %>% 
+  count() %>% 
+  mutate(frame = if_else(state == 'failed', 'a', 'b')) %>% 
+  ggplot(aes(state, n, fill = state)) +
+  geom_bar(stat = 'identity') +
+  geom_text(aes(label=n), vjust=1.6, color="white",position = position_dodge(0.9), size=4)+
+  ggtitle('Total Projects') +
+  ylab('Amount') + 
+  xlab('Project State') +
+  scale_fill_discrete(labels = c('Successful','Failed')) +
+  scale_x_discrete(labels = c('Failed', 'Successful'))+
+  theme(plot.title = element_text(size = 12, face = 'bold', hjust = 0.5),
+        axis.title.x = element_text(size = 10, hjust = 0.5),
+        axis.title.y = element_text(size = 10, hjust = 0.5),
+        legend.position = 'none',
+        axis.text.x = element_text(angle = 0, size = 8),
+        axis.text.y = element_text(angle = 0, size = 8)) 
+
+
+```
 
 
 
