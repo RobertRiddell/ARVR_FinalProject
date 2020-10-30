@@ -814,6 +814,7 @@ animate(Line_Goal, duration = 5, fps = 60, renderer = gifski_renderer(loop = FAL
 anim_save <- Line_Goal + exit_shrink()
 anim_save('Line_graph_goal.gif', animtion = anim_save)
 
+# comparing the mean goal of successful proejct to failed projects
 df %>% 
   filter(!state == 'live', !state == 'suspended', !state == 'canceled') %>% 
   group_by(state) %>% 
@@ -836,6 +837,7 @@ df %>%
 ```
 
 ```{r meeting critera or not meeting criteria}
+# assesing the data of proejcts that met our criterias for sucesss
 df %>% 
   filter(campaign_length > 19 & campaign_length < 45) %>% 
   filter(launched_month == 'Apr'| launched_month == 'May'| launched_month == 'Jun'| 
@@ -859,7 +861,7 @@ df %>%
 
 
 
-
+# assesing the data that did not meet our critera for sucess
 df %>% 
   filter(campaign_length < 19 | campaign_length > 45) %>% 
   filter(!launched_month == 'Apr'| !launched_month == 'May'| !launched_month == 'Jun'| 
